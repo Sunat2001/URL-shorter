@@ -4,6 +4,7 @@ import (
 	"github.com/ilyakaznacheev/cleanenv"
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -22,10 +23,10 @@ type HTTPServer struct {
 }
 
 func MustLoad() *Config {
-	configPath := "C:\\Users\\Sunat\\Desktop\\Projects\\GO\\Url-shorter\\config\\local.yml"
-	//if configPath == "" {
-	//	log.Fatal("CONFIG_PATH is not set")
-	//}
+	configPath := os.Getenv("CONFIG_PATH")
+	if configPath == "" {
+		configPath = filepath.Join("config", "local.yml")
+	}
 
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		log.Fatalf("Not found %v", configPath)

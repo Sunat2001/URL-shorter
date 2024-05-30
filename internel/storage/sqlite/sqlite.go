@@ -4,9 +4,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"modernc.org/sqlite"
 	_ "modernc.org/sqlite"
 	sqlite3 "modernc.org/sqlite/lib"
+	"os"
+	"path/filepath"
 	"url-shortner/internel/storage"
 )
 
@@ -18,22 +21,6 @@ func New(storagePath string) (*Storage, error) {
 	const op = "storage.sqlite.New"
 
 	db, err := sql.Open("sqlite", storagePath)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", op, err)
-	}
-
-	stmt, err := db.Prepare(`
-	CREATE TABLE IF NOT EXISTS url(
-		id INTEGER PRIMARY KEY,
-		alias TEXT NOT NULL UNIQUE,
-		url TEXT NOT NULL);
-	CREATE INDEX IF NOT EXISTS idx_alias ON url(alias);
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", op, err)
-	}
-
-	_, err = stmt.Exec()
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
@@ -112,4 +99,31 @@ func (s *Storage) CloseConnection() {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func (s *Storage) RunMigrations(log *slog.Logger) error {
+	const op = "storage.sqlite.initMigrations"
+
+	migrationDir := filepath.Join("storage", "migrations")
+
+	migrationFiles, err := filepath.Glob(filepath.Join(migrationDir, "*.sql"))
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	for _, file := range migrationFiles {
+		migration, err := os.ReadFile(file)
+		if err != nil {
+			return fmt.Errorf("%s: %w", op, err)
+		}
+
+		_, err = s.db.Exec(string(migration))
+		if err != nil {
+			return fmt.Errorf("%s: %w", op, err)
+		}
+
+		log.Info("Executed migration: ", file)
+	}
+
+	return nil
 }
