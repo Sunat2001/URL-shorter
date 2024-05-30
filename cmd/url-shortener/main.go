@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 	"log/slog"
 	"net/http"
 	"os"
@@ -11,12 +9,9 @@ import (
 	"syscall"
 	"time"
 	"url-shortner/internel/config"
-	"url-shortner/internel/http-server/handlers/redirect"
-	"url-shortner/internel/http-server/handlers/url/delete"
-	"url-shortner/internel/http-server/handlers/url/save"
-	mwLogger "url-shortner/internel/http-server/middleware/logger"
 	"url-shortner/internel/lib/logger/handlers/slogpretty"
 	"url-shortner/internel/lib/logger/sl"
+	"url-shortner/internel/routes"
 	"url-shortner/internel/storage/sqlite"
 )
 
@@ -27,40 +22,23 @@ const (
 )
 
 func main() {
-	// TODO: init config:cleanenv
+	// init config:cleanenv
 	cfg := config.MustLoad()
 
-	// TODO: init logger:sl
 	log := setupLogger(cfg.Env)
 
-	// TODO: init storage:sqllite
+	// init storage:sqllite
 	storage, err := sqlite.New(cfg.StoragePath)
 	if err != nil {
 		log.Error("failed to init storage", sl.Err(err))
 		os.Exit(1)
 	}
+	defer storage.CloseConnection()
 
-	// TODO: init router: chi, "chi render"
-	router := chi.NewRouter()
+	// init router: chi, "chi render"
+	router := routes.New(log, storage, cfg.HTTPServer.User, cfg.HTTPServer.Password)
 
-	router.Use(middleware.RequestID)
-	router.Use(middleware.Logger)
-	router.Use(mwLogger.New(log))
-	router.Use(middleware.Recoverer)
-	router.Use(middleware.URLFormat)
-
-	router.Route("/url", func(r chi.Router) {
-		r.Use(middleware.BasicAuth("url-shortener", map[string]string{
-			cfg.HTTPServer.User: cfg.HTTPServer.Password,
-		}))
-
-		r.Post("/", save.New(log, storage))
-		r.Delete("/{id}", delete.New(log, storage))
-	})
-
-	router.Get("/{alias}", redirect.New(log, storage))
-
-	// TODO: run server
+	// run server
 	log.Info("starting server", slog.String("address", cfg.Address))
 
 	done := make(chan os.Signal, 1)
@@ -93,9 +71,6 @@ func main() {
 
 		return
 	}
-
-	// TODO: close storage
-	defer storage.CloseConnection()
 
 	log.Info("server stopped")
 }
