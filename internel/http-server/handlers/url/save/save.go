@@ -52,7 +52,8 @@ func New(log *slog.Logger, urlSaver URLSaver) http.HandlerFunc {
 
 		log.Info("request Body decoded", slog.Any("request", req))
 		if err := validator.New().Struct(req); err != nil {
-			validateErr := err.(validator.ValidationErrors)
+			var validateErr validator.ValidationErrors
+			errors.As(err, &validateErr)
 
 			log.Error("invalid request", sl.Err(err))
 

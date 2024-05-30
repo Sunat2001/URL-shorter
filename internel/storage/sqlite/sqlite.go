@@ -4,7 +4,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"modernc.org/sqlite"
 	_ "modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 	"url-shortner/internel/storage"
 )
 
@@ -12,28 +14,28 @@ type Storage struct {
 	db *sql.DB
 }
 
-func New(stargePath string) (*Storage, error) {
+func New(storagePath string) (*Storage, error) {
 	const op = "storage.sqlite.New"
 
-	db, err := sql.Open("sqlite", stargePath)
+	db, err := sql.Open("sqlite", storagePath)
 	if err != nil {
-		return nil, fmt.Errorf("%s, %w", op, err)
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
 	stmt, err := db.Prepare(`
 	CREATE TABLE IF NOT EXISTS url(
-	    id INTEGER PRIMARY KEY,
-	    alias TEXT NOT NULL UNIQUE,
-	    url TEXT NOT NULL);
-	CREATE INDEX IF NOT EXISTS idx_alias ON url(alias)
+		id INTEGER PRIMARY KEY,
+		alias TEXT NOT NULL UNIQUE,
+		url TEXT NOT NULL);
+	CREATE INDEX IF NOT EXISTS idx_alias ON url(alias);
 	`)
 	if err != nil {
-		return nil, fmt.Errorf("%s, %w", op, err)
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
 	_, err = stmt.Exec()
 	if err != nil {
-		return nil, fmt.Errorf("%s, %w", op, err)
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
 	return &Storage{db: db}, nil
@@ -49,9 +51,14 @@ func (s *Storage) SaveURL(urlToSave, alias string) (int64, error) {
 
 	res, err := stmt.Exec(urlToSave, alias)
 	if err != nil {
+		var liteErr *sqlite.Error
+		if errors.As(err, &liteErr) {
+			if liteErr.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE {
+				return 0, storage.ErrURLExists
+			}
+		}
 		return 0, fmt.Errorf("%s, %w", op, err)
 	}
-
 	id, err := res.LastInsertId()
 	if err != nil {
 		return 0, fmt.Errorf("%s, failed to get last insert id: %w", op, err)
@@ -75,6 +82,29 @@ func (s *Storage) GetURL(alias string) (string, error) {
 	}
 
 	return url, nil
+}
+
+func (s *Storage) DeleteURL(id int64) error {
+	const op = "storage.sqlite.DeleteURL"
+
+	stmt, err := s.db.Prepare("DELETE FROM url WHERE id = ?")
+	if err != nil {
+		return fmt.Errorf("%s, %w", op, err)
+	}
+
+	res, err := stmt.Exec(id)
+	if err != nil {
+		return fmt.Errorf("%s, %w", op, err)
+	}
+
+	affectedRows, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("%s, %w", op, err)
+	} else if affectedRows == 0 {
+		return storage.ErrIdNotFound
+	}
+
+	return nil
 }
 
 func (s *Storage) CloseConnection() {
