@@ -17,6 +17,13 @@ type Storage struct {
 	db *sql.DB
 }
 
+type RedirectInfo struct {
+	Ip       string
+	Os       string
+	Platform string
+	Browser  string
+}
+
 func New(storagePath string) (*Storage, error) {
 	const op = "storage.sqlite.New"
 
@@ -89,6 +96,24 @@ func (s *Storage) DeleteURL(id int64) error {
 		return fmt.Errorf("%s, %w", op, err)
 	} else if affectedRows == 0 {
 		return storage.ErrIdNotFound
+	}
+
+	return nil
+}
+
+func (s *Storage) SaveRedirectInfo(redirectInfo *RedirectInfo) error {
+	const op = "storage.sqlite.SaveRedirectInfo"
+
+	stmt, err := s.db.Prepare("INSERT INTO url_redirection_info (ip, os, platform, browser) VALUES(?, ?, ?, ?)")
+
+	if err != nil {
+		return fmt.Errorf("%s, %w", op, err)
+	}
+
+	_, err = stmt.Exec(redirectInfo.Ip, redirectInfo.Os, redirectInfo.Platform, redirectInfo.Browser)
+
+	if err != nil {
+		return fmt.Errorf("%s, %w", op, err)
 	}
 
 	return nil
