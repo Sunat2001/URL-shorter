@@ -1,11 +1,13 @@
-name: Deploy App
+name: Deploy App To Test
 
 on:
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Tag to deploy'
-        required: true
+    push:
+      branches:
+        - dev
+      pull_request:
+        branches:
+          - dev
 
 jobs:
   deploy:
