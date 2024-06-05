@@ -1,0 +1,35 @@
+version: '3'
+services:
+  app:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    container_name: url-shorter-app
+    tty: true
+    ports:
+      - "8080:8080"
+    environment:
+      CONFIG_PATH: './config/prod.yml'
+#    networks:
+#      - mynet
+#  db:
+#    image: mysql:8.4
+#    tty: true
+#    ports:
+#      - "3306:3306"
+#    environment:
+#      MYSQL_DATABASE: email24
+#      MYSQL_ROOT_PASSWORD: secret
+#    volumes:
+#      - mysqldata:/var/lib/mysql
+#    networks:
+#      - mynet
+#
+##Docker Networks
+#networks:
+#  mynet:
+#    driver: bridge
+##Volumes
+#volumes:
+#  mysqldata:
+#    driver: local
