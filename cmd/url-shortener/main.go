@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"github.com/joho/godotenv"
+	baselog "log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -9,6 +11,7 @@ import (
 	"syscall"
 	"time"
 	"url-shortner/internel/config"
+	"url-shortner/internel/lib/auth/jwt"
 	"url-shortner/internel/lib/logger/handlers/slogpretty"
 	"url-shortner/internel/lib/logger/sl"
 	"url-shortner/internel/routes"
@@ -22,6 +25,10 @@ const (
 )
 
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		baselog.Fatal("Error loading .env file")
+	}
 	// init config:cleanenv
 	cfg := config.MustLoad()
 
@@ -36,7 +43,8 @@ func main() {
 	defer storage.CloseConnection()
 
 	// init router: chi, "chi render"
-	router := routes.New(log, storage, cfg.HTTPServer.User, cfg.HTTPServer.Password)
+	jwt.Init()
+	router := routes.New(log, storage)
 
 	// run server
 	log.Info("starting server", slog.String("address", cfg.Address))

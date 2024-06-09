@@ -5,6 +5,7 @@ import (
 	baselog "log"
 	"os"
 	"url-shortner/internel/config"
+	"url-shortner/internel/lib/auth/hash"
 	"url-shortner/internel/lib/logger/scriptLogger"
 	"url-shortner/internel/storage/sqlite"
 )
@@ -24,10 +25,18 @@ func main() {
 	}
 	defer storage.CloseConnection()
 
-	err = storage.RunMigrations(log)
+	hashPassword, err := hash.GetHashPassword(os.Getenv("APP_PASSWORD"))
 	if err != nil {
-		log.Error("failed to run migrations: %v", err)
+		log.Error("failed to hash password: %v", err)
 		os.Exit(1)
 	}
-	log.Info("Migrations applied successfully")
+
+	_, err = storage.Query("INSERT INTO users(username, password) VALUES (?, ?)",
+		os.Getenv("APP_USER"), hashPassword)
+	if err != nil {
+		log.Error("failed to create default user: %v", err)
+		os.Exit(1)
+	}
+
+	log.Info("User created")
 }

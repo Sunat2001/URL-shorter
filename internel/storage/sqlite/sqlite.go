@@ -24,6 +24,12 @@ type RedirectInfo struct {
 	Browser  string
 }
 
+type User struct {
+	ID       int64  `json:"id"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
 func New(storagePath string) (*Storage, error) {
 	const op = "storage.sqlite.New"
 
@@ -35,15 +41,15 @@ func New(storagePath string) (*Storage, error) {
 	return &Storage{db: db}, nil
 }
 
-func (s *Storage) SaveURL(urlToSave, alias string) (int64, error) {
+func (s *Storage) SaveURL(urlToSave, alias string, userId float64) (int64, error) {
 	const op = "storage.sqlite.SaveURL"
 
-	stmt, err := s.db.Prepare("INSERT INTO url(url, alias) VALUES(?, ?)")
+	stmt, err := s.db.Prepare("INSERT INTO url(url, alias, user_id) VALUES(?, ?, ?)")
 	if err != nil {
 		return 0, fmt.Errorf("%s, %w", op, err)
 	}
 
-	res, err := stmt.Exec(urlToSave, alias)
+	res, err := stmt.Exec(urlToSave, alias, userId)
 	if err != nil {
 		var liteErr *sqlite.Error
 		if errors.As(err, &liteErr) {
@@ -119,6 +125,26 @@ func (s *Storage) SaveRedirectInfo(redirectInfo *RedirectInfo) error {
 	return nil
 }
 
+func (s *Storage) GetUser(userName string) (User, error) {
+	const op = "storage.sqlite.GetUser"
+
+	stmt, err := s.db.Prepare("SELECT id, username, password FROM users WHERE username = ?")
+	if err != nil {
+		return User{}, fmt.Errorf("%s, %w", op, err)
+	}
+
+	var user User
+	err = stmt.QueryRow(userName).Scan(&user.ID, &user.Username, &user.Password)
+	if errors.Is(err, sql.ErrNoRows) {
+		return User{}, storage.UserNotFound
+	}
+	if err != nil {
+		return User{}, fmt.Errorf("%s, %w", op, err)
+	}
+
+	return user, nil
+}
+
 func (s *Storage) CloseConnection() {
 	err := s.db.Close()
 	if err != nil {
@@ -151,4 +177,46 @@ func (s *Storage) RunMigrations(log *slog.Logger) error {
 	}
 
 	return nil
+}
+
+func (s *Storage) Query(query string, args ...interface{}) ([]map[string]interface{}, error) {
+	const op = "storage.sqlite.Query"
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("%s, %w", op, err)
+	}
+	defer rows.Close()
+
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, fmt.Errorf("%s, %w", op, err)
+	}
+
+	results := make([]map[string]interface{}, 0)
+
+	for rows.Next() {
+		columnPointers := make([]interface{}, len(columns))
+		columnValues := make([]interface{}, len(columns))
+		for i := range columnPointers {
+			columnPointers[i] = &columnValues[i]
+		}
+
+		if err := rows.Scan(columnPointers...); err != nil {
+			return nil, fmt.Errorf("%s, %w", op, err)
+		}
+
+		rowMap := make(map[string]interface{})
+		for i, colName := range columns {
+			rowMap[colName] = columnValues[i]
+		}
+
+		results = append(results, rowMap)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("%s, %w", op, err)
+	}
+
+	return results, nil
 }

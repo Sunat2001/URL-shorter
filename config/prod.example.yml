@@ -4,11 +4,3 @@ http_server:
   address: "0.0.0.0:80"
   timeout: 4s
   idle_timeout: 30s
-  user: "BigBoss2001"
-
-db:
-  HOST: 127.0.0.1
-  PORT: 3306
-  USER: root
-  PASSWORD: example
-  NAME: db_name

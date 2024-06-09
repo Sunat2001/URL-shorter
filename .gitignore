@@ -2,3 +2,4 @@
 /storage/storage.db
 /config/local.yml
 /config/prod.yml
+.env
