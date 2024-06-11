@@ -7,7 +7,9 @@ import (
 	"log/slog"
 	"url-shortner/internel/http-server/handlers/auth/login"
 	"url-shortner/internel/http-server/handlers/redirect"
+	"url-shortner/internel/http-server/handlers/url/all"
 	"url-shortner/internel/http-server/handlers/url/delete"
+	"url-shortner/internel/http-server/handlers/url/redirectInfo"
 	"url-shortner/internel/http-server/handlers/url/save"
 	"url-shortner/internel/lib/auth/jwt"
 	"url-shortner/internel/storage/sqlite"
@@ -31,6 +33,8 @@ func New(log *slog.Logger, storage *sqlite.Storage) *chi.Mux {
 
 		r.Post("/", save.New(log, storage))
 		r.Delete("/{id}", delete.New(log, storage))
+		r.Get("/", all.New(log, storage))
+		r.Get("/redirect-info", redirectInfo.New(log, storage))
 	})
 
 	router.Get("/{alias}", redirect.New(log, storage))
