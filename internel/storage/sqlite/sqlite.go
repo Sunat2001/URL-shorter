@@ -10,32 +10,14 @@ import (
 	sqlite3 "modernc.org/sqlite/lib"
 	"os"
 	"path/filepath"
+	"url-shortner/internel/domain/entities/redirectInfo"
+	"url-shortner/internel/domain/entities/urlInfo"
+	"url-shortner/internel/domain/entities/user"
 	"url-shortner/internel/storage"
 )
 
 type Storage struct {
-	db *sql.DB
-}
-
-type RedirectInfo struct {
-	Id       int64  `json:"id,omitempty"`
-	Ip       string `json:"ip"`
-	Os       string `json:"os"`
-	Platform string `json:"platform"`
-	Browser  string `json:"browser"`
-	Created  string `json:"created"`
-}
-
-type User struct {
-	ID       int64  `json:"id"`
-	Username string `json:"username"`
-	Password string `json:"password,omitempty"`
-}
-
-type UrlInfo struct {
-	Alias string `json:"alias"`
-	Url   string `json:"url"`
-	User  User   `json:"user"`
+	Db *sql.DB
 }
 
 func New(storagePath string) (*Storage, error) {
@@ -46,13 +28,13 @@ func New(storagePath string) (*Storage, error) {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	return &Storage{db: db}, nil
+	return &Storage{Db: db}, nil
 }
 
 func (s *Storage) SaveURL(urlToSave, alias string, userId float64) (int64, error) {
 	const op = "storage.sqlite.SaveURL"
 
-	stmt, err := s.db.Prepare("INSERT INTO url(url, alias, user_id) VALUES(?, ?, ?)")
+	stmt, err := s.Db.Prepare("INSERT INTO url(url, alias, user_id) VALUES(?, ?, ?)")
 	defer stmt.Close()
 	if err != nil {
 		return 0, fmt.Errorf("%s, %w", op, err)
@@ -79,7 +61,7 @@ func (s *Storage) SaveURL(urlToSave, alias string, userId float64) (int64, error
 func (s *Storage) GetURL(alias string) (string, error) {
 	const op = "storage.sqlite.GetURL"
 
-	stmt, err := s.db.Prepare("SELECT url FROM url WHERE alias = ?")
+	stmt, err := s.Db.Prepare("SELECT url FROM url WHERE alias = ?")
 	defer stmt.Close()
 	if err != nil {
 		return "", fmt.Errorf("%s, %w", op, err)
@@ -94,7 +76,7 @@ func (s *Storage) GetURL(alias string) (string, error) {
 	return url, nil
 }
 
-func (s *Storage) GetAllUrl(start, length int64) ([]UrlInfo, error) {
+func (s *Storage) GetAllUrl(start, length int64) ([]urlInfo.UrlInfo, error) {
 	const op = "storage.sqlite.GetAllUrl"
 	query := `
 		SELECT 
@@ -109,7 +91,7 @@ func (s *Storage) GetAllUrl(start, length int64) ([]UrlInfo, error) {
 		ON 
 			u.user_id = us.id 
 		LIMIT ? OFFSET ?`
-	stmt, err := s.db.Prepare(query)
+	stmt, err := s.Db.Prepare(query)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
@@ -121,11 +103,11 @@ func (s *Storage) GetAllUrl(start, length int64) ([]UrlInfo, error) {
 	}
 	defer rows.Close()
 
-	var urls []UrlInfo
+	var urls []urlInfo.UrlInfo
 
 	for rows.Next() {
-		var urlInfo UrlInfo
-		var user User
+		var urlInfo urlInfo.UrlInfo
+		var user user.User
 		err := rows.Scan(&urlInfo.Alias, &urlInfo.Url, &user.ID, &user.Username)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", op, err)
@@ -141,7 +123,7 @@ func (s *Storage) GetAllUrl(start, length int64) ([]UrlInfo, error) {
 	return urls, nil
 }
 
-func (s *Storage) GetAllRedirectInfo(start, length int64) ([]RedirectInfo, error) {
+func (s *Storage) GetAllRedirectInfo(start, length int64) ([]redirectInfo.RedirectInfo, error) {
 	const op = "storage.sqlite.GetAllRedirectInfo"
 	query := `
 		SELECT 
@@ -154,7 +136,7 @@ func (s *Storage) GetAllRedirectInfo(start, length int64) ([]RedirectInfo, error
 		FROM 
 			url_redirection_info
 		LIMIT ? OFFSET ?`
-	stmt, err := s.db.Prepare(query)
+	stmt, err := s.Db.Prepare(query)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
@@ -166,10 +148,10 @@ func (s *Storage) GetAllRedirectInfo(start, length int64) ([]RedirectInfo, error
 	}
 	defer rows.Close()
 
-	var infos []RedirectInfo
+	var infos []redirectInfo.RedirectInfo
 
 	for rows.Next() {
-		var urlInfo RedirectInfo
+		var urlInfo redirectInfo.RedirectInfo
 		err := rows.Scan(&urlInfo.Id, &urlInfo.Ip, &urlInfo.Os, &urlInfo.Platform, &urlInfo.Browser, &urlInfo.Created)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", op, err)
@@ -184,16 +166,16 @@ func (s *Storage) GetAllRedirectInfo(start, length int64) ([]RedirectInfo, error
 	return infos, nil
 }
 
-func (s *Storage) DeleteURL(id int64) error {
+func (s *Storage) DeleteURL(alias string) error {
 	const op = "storage.sqlite.DeleteURL"
 
-	stmt, err := s.db.Prepare("DELETE FROM url WHERE id = ?")
+	stmt, err := s.Db.Prepare("DELETE FROM url WHERE alias = ?")
 	defer stmt.Close()
 	if err != nil {
 		return fmt.Errorf("%s, %w", op, err)
 	}
 
-	res, err := stmt.Exec(id)
+	res, err := stmt.Exec(alias)
 	if err != nil {
 		return fmt.Errorf("%s, %w", op, err)
 	}
@@ -208,10 +190,10 @@ func (s *Storage) DeleteURL(id int64) error {
 	return nil
 }
 
-func (s *Storage) SaveRedirectInfo(redirectInfo *RedirectInfo) error {
+func (s *Storage) SaveRedirectInfo(redirectInfo *redirectInfo.RedirectInfo) error {
 	const op = "storage.sqlite.SaveRedirectInfo"
 
-	stmt, err := s.db.Prepare("INSERT INTO url_redirection_info (ip, os, platform, browser) VALUES(?, ?, ?, ?)")
+	stmt, err := s.Db.Prepare("INSERT INTO url_redirection_info (ip, os, platform, browser) VALUES(?, ?, ?, ?)")
 	defer stmt.Close()
 	if err != nil {
 		return fmt.Errorf("%s, %w", op, err)
@@ -226,29 +208,29 @@ func (s *Storage) SaveRedirectInfo(redirectInfo *RedirectInfo) error {
 	return nil
 }
 
-func (s *Storage) GetUser(userName string) (User, error) {
+func (s *Storage) GetUser(userName string) (user.User, error) {
 	const op = "storage.sqlite.GetUser"
 
-	stmt, err := s.db.Prepare("SELECT id, username, password FROM users WHERE username = ?")
+	stmt, err := s.Db.Prepare("SELECT id, username, password FROM users WHERE username = ?")
 	defer stmt.Close()
 	if err != nil {
-		return User{}, fmt.Errorf("%s, %w", op, err)
+		return user.User{}, fmt.Errorf("%s, %w", op, err)
 	}
 
-	var user User
-	err = stmt.QueryRow(userName).Scan(&user.ID, &user.Username, &user.Password)
+	var userEntity user.User
+	err = stmt.QueryRow(userName).Scan(&userEntity.ID, &userEntity.Username, &userEntity.Password)
 	if errors.Is(err, sql.ErrNoRows) {
-		return User{}, storage.UserNotFound
+		return user.User{}, storage.UserNotFound
 	}
 	if err != nil {
-		return User{}, fmt.Errorf("%s, %w", op, err)
+		return user.User{}, fmt.Errorf("%s, %w", op, err)
 	}
 
-	return user, nil
+	return userEntity, nil
 }
 
 func (s *Storage) CloseConnection() {
-	err := s.db.Close()
+	err := s.Db.Close()
 	if err != nil {
 		panic(err)
 	}
@@ -270,7 +252,7 @@ func (s *Storage) RunMigrations(log *slog.Logger) error {
 			return fmt.Errorf("%s: %w", op, err)
 		}
 
-		_, err = s.db.Exec(string(migration))
+		_, err = s.Db.Exec(string(migration))
 		if err != nil {
 			return fmt.Errorf("%s: %w", op, err)
 		}
@@ -284,7 +266,7 @@ func (s *Storage) RunMigrations(log *slog.Logger) error {
 func (s *Storage) Query(query string, args ...interface{}) ([]map[string]interface{}, error) {
 	const op = "storage.sqlite.Query"
 
-	rows, err := s.db.Query(query, args...)
+	rows, err := s.Db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("%s, %w", op, err)
 	}

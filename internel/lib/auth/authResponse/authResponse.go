@@ -1,13 +1,13 @@
 package authResponse
 
 import (
+	"url-shortner/internel/domain/entities/user"
 	"url-shortner/internel/lib/api/response"
-	"url-shortner/internel/storage/sqlite"
 )
 
 type Response struct {
 	response.Response
-	User          sqlite.User   `json:"user"`
+	User          user.User     `json:"user"`
 	AuthTokenInfo AuthTokenInfo `json:"authorisation"`
 }
 

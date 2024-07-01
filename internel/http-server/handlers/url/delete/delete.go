@@ -7,7 +7,6 @@ import (
 	"github.com/go-chi/render"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"url-shortner/internel/lib/api/response"
 	"url-shortner/internel/lib/logger/sl"
 	"url-shortner/internel/storage"
@@ -19,7 +18,7 @@ type Response struct {
 
 //go:generate go run github.com/vektra/mockery/v2@v2.28.2 --name=URLDeleter
 type URLDeleter interface {
-	DeleteURL(id int64) error
+	DeleteURL(alias string) error
 }
 
 func New(log *slog.Logger, deleter URLDeleter) http.HandlerFunc {
@@ -31,23 +30,16 @@ func New(log *slog.Logger, deleter URLDeleter) http.HandlerFunc {
 			slog.String("requestId", middleware.GetReqID(r.Context())),
 		)
 
-		IDString := chi.URLParam(r, "id")
-		if IDString == "" {
-			log.Info("ID is empty")
+		alias := chi.URLParam(r, "alias")
+		if alias == "" {
+			log.Info("alias is empty")
 
 			render.JSON(w, r, response.Error("invalid request"))
 
 			return
 		}
 
-		ID, err := strconv.ParseInt(IDString, 10, 64)
-		if err != nil {
-			log.Info("ID is invalid")
-			render.JSON(w, r, response.Error("invalid request"))
-			return
-		}
-
-		err = deleter.DeleteURL(ID)
+		err := deleter.DeleteURL(alias)
 		if errors.Is(err, storage.ErrIdNotFound) {
 			log.Error("ID doesn't exist", sl.Err(err))
 

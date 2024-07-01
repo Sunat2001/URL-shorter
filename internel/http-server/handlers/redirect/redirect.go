@@ -2,19 +2,18 @@ package redirect
 
 import (
 	"errors"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/render"
 	"github.com/mssola/useragent"
 	"log/slog"
 	"net"
 	"net/http"
 	"strings"
+	"url-shortner/internel/domain/entities/redirectInfo"
 	"url-shortner/internel/lib/api/response"
 	"url-shortner/internel/lib/logger/sl"
 	"url-shortner/internel/storage"
-	"url-shortner/internel/storage/sqlite"
-
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
-	"github.com/go-chi/render"
 )
 
 // URLGetter is an interface for getting url by alias.
@@ -22,7 +21,7 @@ import (
 //go:generate go run github.com/vektra/mockery/v2@v2.28.2 --name=URLGetter
 type URLGetter interface {
 	GetURL(alias string) (string, error)
-	SaveRedirectInfo(redirectInfo *sqlite.RedirectInfo) error
+	SaveRedirectInfo(redirectInfo *redirectInfo.RedirectInfo) error
 }
 
 func New(log *slog.Logger, urlGetter URLGetter) http.HandlerFunc {
@@ -47,13 +46,13 @@ func New(log *slog.Logger, urlGetter URLGetter) http.HandlerFunc {
 		ua := useragent.New(userAgentString)
 		name, version := ua.Browser()
 		browser := name + " " + version
-		redirectInfo := &sqlite.RedirectInfo{
+		redirectInfoEntity := &redirectInfo.RedirectInfo{
 			Ip:       getIP(r),
 			Os:       ua.OS(),
 			Platform: ua.Platform(),
 			Browser:  browser,
 		}
-		err := urlGetter.SaveRedirectInfo(redirectInfo)
+		err := urlGetter.SaveRedirectInfo(redirectInfoEntity)
 		if err != nil {
 			log.Error("Failed to save redirect info", sl.Err(err))
 

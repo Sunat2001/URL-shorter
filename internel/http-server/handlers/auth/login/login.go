@@ -7,6 +7,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"log/slog"
 	"net/http"
+	"url-shortner/internel/domain/entities/user"
 	"url-shortner/internel/lib/api/response"
 	"url-shortner/internel/lib/auth/authRequest"
 	"url-shortner/internel/lib/auth/authResponse"
@@ -14,11 +15,10 @@ import (
 	"url-shortner/internel/lib/auth/jwt"
 	"url-shortner/internel/lib/logger/sl"
 	"url-shortner/internel/storage"
-	"url-shortner/internel/storage/sqlite"
 )
 
 type UserRepository interface {
-	GetUser(userName string) (sqlite.User, error)
+	GetUser(userName string) (user.User, error)
 }
 
 func New(log *slog.Logger, userRepository UserRepository) http.HandlerFunc {
@@ -80,10 +80,10 @@ func New(log *slog.Logger, userRepository UserRepository) http.HandlerFunc {
 	}
 }
 
-func responseOK(w http.ResponseWriter, r *http.Request, User sqlite.User, token string) {
+func responseOK(w http.ResponseWriter, r *http.Request, User user.User, token string) {
 	render.JSON(w, r, authResponse.Response{
 		Response: response.OK(),
-		User: sqlite.User{
+		User: user.User{
 			ID:       User.ID,
 			Username: User.Username,
 		},

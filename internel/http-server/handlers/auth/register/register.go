@@ -7,14 +7,14 @@ import (
 	"github.com/go-playground/validator/v10"
 	"log/slog"
 	"net/http"
+	"url-shortner/internel/domain/entities/user"
 	"url-shortner/internel/lib/api/response"
 	"url-shortner/internel/lib/auth/authRequest"
 	"url-shortner/internel/lib/logger/sl"
-	"url-shortner/internel/storage/sqlite"
 )
 
 type UserRepository interface {
-	UserSave(userReq authRequest.Request) (error, sqlite.User)
+	UserSave(userReq authRequest.Request) (error, user.User)
 }
 
 // New Deprecated

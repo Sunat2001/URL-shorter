@@ -1,15 +1,18 @@
 package redirectInfo
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
 	"github.com/go-playground/validator/v10"
 	"log/slog"
 	"net/http"
+	"strconv"
+	"url-shortner/internel/domain/entities/redirectInfo"
 	"url-shortner/internel/lib/api/response"
 	"url-shortner/internel/lib/logger/sl"
-	"url-shortner/internel/storage/sqlite"
 )
 
 type Request struct {
@@ -19,11 +22,17 @@ type Request struct {
 
 type Response struct {
 	response.Response
-	URLs []sqlite.RedirectInfo `json:"urlInfo"`
+	URLs []redirectInfo.RedirectInfo `json:"urlInfo"`
+}
+
+type IPApiResponse struct {
+	Country     string `json:"country"`
+	City        string `json:"city"`
+	CountryCode string `json:"countryCode"`
 }
 
 type InfoRepository interface {
-	GetAllRedirectInfo(start, length int64) ([]sqlite.RedirectInfo, error)
+	GetAllRedirectInfo(start, length int64) ([]redirectInfo.RedirectInfo, error)
 }
 
 func New(log *slog.Logger, repository InfoRepository) http.HandlerFunc {
@@ -35,14 +44,24 @@ func New(log *slog.Logger, repository InfoRepository) http.HandlerFunc {
 			slog.String("requestId", middleware.GetReqID(r.Context())),
 		)
 
-		var req Request
+		startStr := r.URL.Query().Get("start")
+		lengthStr := r.URL.Query().Get("length")
 
-		err := render.DecodeJSON(r.Body, &req)
+		start, err := strconv.Atoi(startStr)
 		if err != nil {
-			log.Error("falied to render.JSON", sl.Err(err))
-			render.JSON(w, r, response.Error("failed parse JSON body"))
+			render.JSON(w, r, response.Error("Invalid 'start' parameter"))
 			return
 		}
+
+		length, err := strconv.Atoi(lengthStr)
+		if err != nil {
+			render.JSON(w, r, response.Error("Invalid 'length' parameter"))
+			return
+		}
+
+		var req Request
+		req.Start = start
+		req.Length = length
 
 		log.Info("request Body decoded", slog.Any("request", req))
 		if err := validator.New().Struct(req); err != nil {
@@ -61,12 +80,46 @@ func New(log *slog.Logger, repository InfoRepository) http.HandlerFunc {
 			return
 		}
 
+		for i, info := range infos {
+			country, err := getCountryByIP(info.Ip)
+			if err != nil {
+				log.Error("Failed to get ip country info", sl.Err(err))
+				continue
+			}
+
+			infos[i].Country = country.Country
+			infos[i].City = country.City
+			infos[i].CountryCode = country.CountryCode
+		}
+
 		responseOK(w, r, infos)
 	}
 }
-func responseOK(w http.ResponseWriter, r *http.Request, Urls []sqlite.RedirectInfo) {
+
+func responseOK(w http.ResponseWriter, r *http.Request, Urls []redirectInfo.RedirectInfo) {
 	render.JSON(w, r, Response{
 		Response: response.OK(),
 		URLs:     Urls,
 	})
+}
+
+func getCountryByIP(ip string) (IPApiResponse, error) {
+	url := fmt.Sprintf("http://ip-api.com/json/%s", ip)
+	resp, err := http.Get(url)
+	if err != nil {
+		return IPApiResponse{}, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return IPApiResponse{}, fmt.Errorf("failed to get response: %s", resp.Status)
+	}
+
+	var result IPApiResponse
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		return IPApiResponse{}, err
+	}
+
+	return result, nil
 }

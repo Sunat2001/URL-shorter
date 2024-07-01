@@ -7,9 +7,10 @@ import (
 	"github.com/go-playground/validator/v10"
 	"log/slog"
 	"net/http"
+	"strconv"
+	"url-shortner/internel/domain/entities/urlInfo"
 	"url-shortner/internel/lib/api/response"
 	"url-shortner/internel/lib/logger/sl"
-	"url-shortner/internel/storage/sqlite"
 )
 
 type Request struct {
@@ -19,11 +20,11 @@ type Request struct {
 
 type Response struct {
 	response.Response
-	URLs []sqlite.UrlInfo `json:"urls"`
+	URLs []urlInfo.UrlInfo `json:"urls"`
 }
 
 type UrlRepository interface {
-	GetAllUrl(start, length int64) ([]sqlite.UrlInfo, error)
+	GetAllUrl(start, length int64) ([]urlInfo.UrlInfo, error)
 }
 
 func New(log *slog.Logger, repository UrlRepository) http.HandlerFunc {
@@ -35,14 +36,24 @@ func New(log *slog.Logger, repository UrlRepository) http.HandlerFunc {
 			slog.String("requestId", middleware.GetReqID(r.Context())),
 		)
 
-		var req Request
+		startStr := r.URL.Query().Get("start")
+		lengthStr := r.URL.Query().Get("length")
 
-		err := render.DecodeJSON(r.Body, &req)
+		start, err := strconv.Atoi(startStr)
 		if err != nil {
-			log.Error("falied to render.JSON", sl.Err(err))
-			render.JSON(w, r, response.Error("failed parse JSON body"))
+			render.JSON(w, r, response.Error("Invalid 'start' parameter"))
 			return
 		}
+
+		length, err := strconv.Atoi(lengthStr)
+		if err != nil {
+			render.JSON(w, r, response.Error("Invalid 'length' parameter"))
+			return
+		}
+
+		var req Request
+		req.Start = start
+		req.Length = length
 
 		log.Info("request Body decoded", slog.Any("request", req))
 		if err := validator.New().Struct(req); err != nil {
@@ -64,7 +75,7 @@ func New(log *slog.Logger, repository UrlRepository) http.HandlerFunc {
 		responseOK(w, r, urls)
 	})
 }
-func responseOK(w http.ResponseWriter, r *http.Request, Urls []sqlite.UrlInfo) {
+func responseOK(w http.ResponseWriter, r *http.Request, Urls []urlInfo.UrlInfo) {
 	render.JSON(w, r, Response{
 		Response: response.OK(),
 		URLs:     Urls,
